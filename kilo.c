@@ -1,58 +1,170 @@
 #include <unistd.h>
-#include<termios.h>
-#include<stdlib.h>
+#include <termios.h>
+#include<string.h>
+#include <stdlib.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <errno.h>
+#include <sys/ioctl.h>
 
-struct termios orig_termios;
-//Raw mode is a terminal mode in which input and output are handled without any processing 
-//or modification by the terminal. In raw mode:
-// A mask is abit pattern used to modify specific bits in a variable without affecting
-// the other bits 
-void disableRawMode(){
-    tcsetattr(STDIN_FILENO,TCSAFLUSH,&orig_termios);
+/*** Defines ***/
+#define CTRL_KEY(k) ((k) & 0x1f) // Macro to interpret Ctrl + key input
+#define ABUF_INIT {NULL,0}
+
+/**append buffer */
+struct abuf{
+  char *b;
+  int len;
+};
+
+void abAppend(struct abuf *ab,const char *s,int len){
+  char *new = realloc(ab->b,ab->len+len);
+
+  if(new == NULL) return;
+  memcpy(&new[ab->len],s,len);
+  ab->b =new;
+  ab->len+= len;
+}
+
+void abFree(struct abuf *ab){
+  free(ab->b);
 }
 
 
-void enableRawMode(){
-    tcgetattr(STDIN_FILENO, &orig_termios);//used to get paramters associated witht the terminal
-    //reads current attribute into a struct 
-    atexit(disableRawMode);
-    // atexit() comes from <stdlib.h>. We use it to register 
-    // our disableRawMode() function to be called automatically when the program exits, whether it exits by returning from main(), or by calling the exit() function. This way we can ensure we’ll leave the terminal attributes 
-    // the way we found them when our program exits.
-    struct termios raw = orig_termios;
-    raw.c_lflag &= ~(ICRNL|IXON);//TURNS off ctrls/q that are used for soft control to stop data being transmitted 
-    //ICRNL turns of carriage return done by the terminal 
-    raw.c_oflag&=~(OPOST);
-    raw.c_lflag &=~(ECHO | ICANON | ISIG |IEXTEN);
-    //ISIG TURNS OF CTRLZ AND CTRLC THATI SIGIINT AND SIGSTP
-    //this & is not for address but a bitwise operation here 
-    // anding the not of ECHO flag 
-    // ECHO is a bitflag, defined as 
-    // 00000000000000000000000000001000 in binary. 
-    // We use the bitwise-NOT operator (~) on this value t
-    // o get 11111111111111111111111111110111. 
-    // We then bitwise-AND this value with the flags field, 
-    // which forces the fourth bit in the flags 
-    // field to become 0, and causes every other bit 
-    // to retain its current value. 
-    //Flipping bits like this is common in C.
-    tcsetattr(STDIN_FILENO,TCSAFLUSH,&raw);
-    // the TCSAFLUSH argument specifies when to apply the change: in this case, it waits for all pending output to be written to the terminal, 
-    // and also discards any input that hasn’t been read.
+/*** Data ***/
+struct editorConfig {
+    int screenrows; // Number of rows in the terminal window
+    int screencols; // Number of columns in the terminal window
+    struct termios orig_termios; // Stores the original terminal settings
+};
+
+struct editorConfig E; // Global editor configuration
+
+/*** Terminal ***/
+
+
+
+
+// Cleans up terminal and exits program on error
+void die(const char *s) {
+    write(STDOUT_FILENO, "\x1b[2J", 4); // Clears the entire screen
+    write(STDOUT_FILENO, "\x1b[H", 3);  // Moves the cursor to the top-left corner
+    perror(s);
+    exit(1);
 }
-///r/n - moves the cursor to the beginning of the line along with moving the cursr to the next line 
-int main() {
-  enableRawMode();
-  char c;
-  while (read(STDIN_FILENO, &c, 1) == 1 && c != 'q'){
-    //iscntrl tests whether a char is a control character,i.e. non printable characters 
-    if(iscntrl(c)){
-        printf("%d\n", c);
-    }else{
-        printf("%d ('%c')\r\n", c, c);
+
+// Restores the terminal to its original mode
+void disableRawMode() {
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios) == -1)
+        die("tcsetattr");
+}
+
+// Configures terminal into raw mode
+void enableRawMode() {
+    if (tcgetattr(STDIN_FILENO, &E.orig_termios) == -1)
+        die("tcgetattr"); // Saves current terminal settings
+
+    atexit(disableRawMode); // Ensures terminal settings are restored on program exit
+
+    struct termios raw = E.orig_termios;
+    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON); // Disables specific input flags
+    raw.c_oflag &= ~(OPOST); // Disables output post-processing
+    raw.c_cflag |= (CS8); // Sets character size to 8 bits per byte
+    raw.c_lflag &= ~(ECHO | ICANON | ISIG | IEXTEN); // Disables canonical mode, echo, and signals
+    raw.c_cc[VMIN] = 0; // Minimum number of bytes for read()
+    raw.c_cc[VTIME] = 1; // Timeout for read()
+
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1)
+        die("tcsetattr");
+}
+
+// Reads a single key press from the user
+char editorReadKey() {
+    int nread;
+    char c;
+    while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
+        if (nread == -1 && errno != EAGAIN) die("read");
     }
-  };
+    return c;
+}
+int getCursorPosition(int *rows, int *cols) {
+  char buf[32];
+  unsigned int i = 0;
+  while(i<sizeof(buf)-1){
+    if(read(STDIN_FILENO,&buf[i],1)!=1)break;
+    if(buf[i]=='R')break;
+    i++;
+  }
+  buf[i]='\0';
+  if(buf[0]!='\x1b'||buf[1]!='[')return -1;
+  if(sscanf(&buf[2],"%d;%d",rows,cols)!=2) return -1;
   return 0;
+}
+// Retrieves the size of the terminal window
+int getWindowSize(int *rows, int *cols) {
+    struct winsize ws;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+        if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12)return -1;
+        return getCursorPosition(rows,cols);
+    } else {
+        *cols = ws.ws_col;
+        *rows = ws.ws_row;
+        return 0;
+    }
+}
+
+/*** Output ***/
+
+// Draws tildes (~) on each row of the terminal
+void editorDrawRows(struct abuf *ab) {
+    for (int y = 0; y < E.screenrows; y++) {
+        write(STDOUT_FILENO, "~\r\n", 3);
+        if(y<E.screenrows-1){
+          write(STDOUT_FILENO,"\r\n",2);
+        }
+    }
+}
+
+// Refreshes the screen by clearing it and redrawing the rows
+void editorRefreshScreen() {
+    write(STDOUT_FILENO, "\x1b[2J", 4); // Clears the screen
+    write(STDOUT_FILENO, "\x1b[H", 3);  // Moves the cursor to the top-left corner
+    editorDrawRows();
+    write(STDOUT_FILENO, "\x1b[H", 3);  // Resets the cursor position
+}
+
+/*** Input ***/
+
+// Processes user keypresses and handles them accordingly
+void editorProcessKeypress() {
+    char c = editorReadKey();
+    switch (c) {
+        case CTRL_KEY('q'): // If Ctrl+Q is pressed, quit the program
+            write(STDOUT_FILENO, "\x1b[2J", 4); // Clears the screen
+            write(STDOUT_FILENO, "\x1b[H", 3);  // Moves the cursor to the top-left corner
+            exit(0);
+            break;
+    }
+}
+
+/*** Initialization ***/
+
+// Initializes the editor by retrieving the window size
+void initEditor() {
+    if (getWindowSize(&E.screenrows, &E.screencols) == -1)
+        die("getWindowSize");
+}
+
+/*** Main ***/
+
+int main() {
+    enableRawMode(); // Enable raw mode for the terminal
+    initEditor();    // Initialize the editor configuration
+
+    while (1) {
+        editorRefreshScreen();   // Refresh the screen on each iteration
+        editorProcessKeypress(); // Wait for and handle user input
+    }
+
+    return 0;
 }
