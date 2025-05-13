@@ -14,29 +14,7 @@
 #include<sys/types.h>
 
 
-/**file i/o */
-void editorOpen(char *filename){
 
-    FILE *fp = fopen(filename,"r");
-    if(!fp) die("fopen");
-
-
-
-    char *line = "Hello World";
-    ssize_t linelen;
-    ssize_t linecap = 0;
-    linelen = getline(&line,&linecap,fp);
-    if(linelen!=-1){
-        while(linelen > 0 && (line[linelen-1]=='\n'|| line[linelen - 1]=='\r')) linelen--;
-        E.row.size = linelen;
-        E.row.chars = malloc(linelen+1);
-        memcpy(E.row.chars,line,linelen);
-        E.row.chars[linelen]='\0';
-        E.numrows =1 ;
-    }
-    free(line);
-    fclose(fp);
-}
 
 
 /*** Defines ***/
@@ -90,19 +68,35 @@ typedef struct erow {
 
 struct editorConfig {
     int cx,cy;//coordiantes of cursor 
+    int rowoff;//keeps track of what row of the file the user is currently scrolled to 
     int screenrows; // Number of rows in the terminal window
     int screencols; // Number of columns in the terminal window
     struct termios orig_termios; // Stores the original terminal settings
     int numrows;
-    erow row;
+    erow *row;
 };
 
 struct editorConfig E; // Global editor configuration
 
 /*** Terminal ***/
 
+/**row operations */
+
+void editorAppendRow(char *s,size_t len){
+
+    E.row  =realloc(E.row,sizeof(erow)*(E.numrows+1));
+    int at = E.numrows;
+    E.row[at].size = len;
+    E.row[at].chars = malloc(len+1);
+    memcpy(E.row[at].chars,s,len);
+    E.row[at].chars[len]='\0';
+    E.numrows++ ;
+}
 
 
+
+
+/**file i/o */
 
 // Cleans up terminal and exits program on error
 void die(const char *s) {
@@ -112,6 +106,30 @@ void die(const char *s) {
     exit(1);
 }
 
+void editorOpen(char *filename){
+
+    FILE *fp = fopen(filename,"r");
+    if(!fp) {
+        printf("failed to load");
+        die("fopen");
+    }
+    printf("hi didnt fail");
+
+
+
+
+    char *line = NULL;
+    ssize_t linelen=0;
+    size_t linecap;
+    while ((linelen = getline(&line, &linecap, fp)) != -1) {
+        while (linelen > 0 && (line[linelen - 1] == '\n' || line[linelen - 1] == '\r'))linelen--;
+        editorAppendRow(line, linelen);
+    }
+    free(line);
+    fclose(fp);
+}
+
+
 // Restores the terminal to its original mode
 void disableRawMode() {
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios) == -1)
@@ -120,6 +138,7 @@ void disableRawMode() {
 
 // Configures terminal into raw mode
 void enableRawMode() {
+    printf("hi");
     if (tcgetattr(STDIN_FILENO, &E.orig_termios) == -1)
         die("tcgetattr"); // Saves current terminal settings
 
@@ -215,36 +234,46 @@ int getWindowSize(int *rows, int *cols) {
 
 /*** Output ***/
 
+
+
+void editorScroll(){
+    if(E.cy<E.rowoff){
+        E.rowoff = E.cy;
+    }
+    if(E.cy>=E.rowoff + E.screenrows){
+        E.rowoff = E.cy - E.screenrows+1;
+    }
+}
+
 // Draws tildes (~) on each row of the terminal
 void editorDrawRows(struct abuf *ab) {
     for (int y = 0; y < E.screenrows; y++) {
-        if(y>=E.numrows){
-            if(y==E.screenrows/3){
-                char welcome[80];
-                int welcomelen = snprintf(welcome,sizeof(welcome),"Kilo editor --version%s",KILO_VERSION);
-                
-                if(welcomelen>E.screencols) welcomelen  = E.screencols; //default the size to screen size incase its smaller then welcome
-                
-                int padding = (E.screencols-welcomelen)/2;
-                if(padding){
-                    abAppend(ab,"~",1);
-                    padding--;
-                }
-            while(padding--) abAppend(ab,"",1);
-            abAppend(ab,welcome,welcomelen);
-            }else{
-            abAppend(ab,"~",1);
-            }   
+        int filerow  = y +E.rowoff;
+        if(filerow>=E.numrows){
+            if(y>=E.numrows){
+                if(y==E.screenrows/3 && E.numrows==0){
+                    char welcome[80];
+                    int welcomelen = snprintf(welcome,sizeof(welcome),"Kilo editor --version%s",KILO_VERSION);
+                    
+                    if(welcomelen>E.screencols) welcomelen  = E.screencols; //default the size to screen size incase its smaller then welcome
+                    
+                    int padding = (E.screencols-welcomelen)/2;
+                    if(padding){
+                        abAppend(ab,"~",1);
+                        padding--;
+                    }
+                while(padding--) abAppend(ab,"",1);
+                abAppend(ab,welcome,welcomelen);
+                }else{
+                abAppend(ab,"~",1);
+                }   
+            }
         }
         else{
-            int len  = E.row.size;
+            int len  = E.row[filerow].size;
             if(len>E.screencols) len  = E.screencols;
-            abAppend(ab,E.row.chars,len);
+            abAppend(ab,E.row[filerow].chars,len);
         }
-
-
-
-        abAppend(ab,"~",1);
 
         abAppend(ab,"\x1b[K",3);
         if(y<E.screenrows-1){
@@ -260,6 +289,7 @@ void editorDrawRows(struct abuf *ab) {
 
 // Refreshes the screen by clearing it and redrawing the rows
 void editorRefreshScreen() {
+    editorScroll();
     struct abuf ab  = ABUF_INIT;
 
     abAppend(&ab,"\x1b[?25l",6);//hide the cursor before refereshing the screen
@@ -270,7 +300,7 @@ void editorRefreshScreen() {
     editorDrawRows(&ab);
 
     char buf[32];
-    snprintf(buf,sizeof(buf),"\x1b[%d;%dH",E.cy+1,E.cx+1);
+    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, E.cx + 1);
     abAppend(&ab,buf,strlen(buf));
     abAppend(&ab, "\x1b[?25h", 6);
 
@@ -299,7 +329,7 @@ void editorMoveCursor(int key){
             }
             break;
         case ARROW_DOWN:
-            if(E.cy!=E.screenrows-1){
+            if(E.cy<E.numrows){
                  E.cy++;
             }
             break;
@@ -346,26 +376,38 @@ void editorProcessKeypress() {
 // Initializes the editor by retrieving the window size
 void initEditor() {
 
+    E.rowoff=0;
     E.cy = 0 ;
     E.cx = 0;
     E.numrows=0;
+    E.row = NULL;
 
-    if (getWindowSize(&E.screenrows, &E.screencols) == -1)
-        die("getWindowSize");
+    if (getWindowSize(&E.screenrows, &E.screencols) == -1)die("getWindowSize");
+        
 }
+
+
 
 /*** Main ***/
 
-int main(int argc ,char *argv[]) {
-    enableRawMode(); // Enable raw mode for the terminal
-    initEditor();    // Initialize the editor configuration
-
-    if(argc>=2){
+int main(int argc, char *argv[]) {
+    enableRawMode();
+    initEditor();
+    if (argc >= 2) {
+        printf("hi");
+        fflush(stdout);
+        printf("%s",argv[1]);
+        fflush(stdout);
         editorOpen(argv[1]);
     }
+    if (getWindowSize(&E.screenrows, &E.screencols) == -1) die("getWindowSize");
+    
+    E.cx = 0;
+    E.cy = 0;
+
     while (1) {
-        editorRefreshScreen();   // Refresh the screen on each iteration
-        editorProcessKeypress(); // Wait for and handle user input
+        editorRefreshScreen();
+        editorProcessKeypress();
     }
 
     return 0;
