@@ -69,6 +69,7 @@ typedef struct erow {
 struct editorConfig {
     int cx,cy;//coordiantes of cursor 
     int rowoff;//keeps track of what row of the file the user is currently scrolled to 
+    int coloff;//keeps track of what col of the file the userhas currently scorlled to 
     int screenrows; // Number of rows in the terminal window
     int screencols; // Number of columns in the terminal window
     struct termios orig_termios; // Stores the original terminal settings
@@ -226,7 +227,7 @@ int getWindowSize(int *rows, int *cols) {
         if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12)return -1;
         return getCursorPosition(rows,cols);
     } else {
-        *cols = ws.ws_col;
+        *cols = 80;
         *rows = ws.ws_row;
         return 0;
     }
@@ -238,10 +239,17 @@ int getWindowSize(int *rows, int *cols) {
 
 void editorScroll(){
     if(E.cy<E.rowoff){
+        //scrolls the viewport so the cursor is at the top of the screen 
         E.rowoff = E.cy;
     }
     if(E.cy>=E.rowoff + E.screenrows){
         E.rowoff = E.cy - E.screenrows+1;
+    }
+    if(E.cx<E.coloff){
+        E.coloff = E.cx;
+    }
+    if(E.cx>=E.coloff+E.screencols){
+        E.coloff = E.cx-E.screencols+1;
     }
 }
 
@@ -270,14 +278,15 @@ void editorDrawRows(struct abuf *ab) {
             }
         }
         else{
-            int len  = E.row[filerow].size;
+            int len  = E.row[filerow].size-E.coloff;
+            if(len<0) len =0 ;
             if(len>E.screencols) len  = E.screencols;
-            abAppend(ab,E.row[filerow].chars,len);
+            abAppend(ab,&E.row[filerow].chars[E.coloff],len);
         }
 
         abAppend(ab,"\x1b[K",3);
         if(y<E.screenrows-1){
-          write(STDOUT_FILENO,"\r\n",2);
+          abAppend(ab,"\r\n",2);
         }
     }
 }
@@ -300,7 +309,7 @@ void editorRefreshScreen() {
     editorDrawRows(&ab);
 
     char buf[32];
-    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, E.cx + 1);
+    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, (E.cx-E.coloff) + 1);
     abAppend(&ab,buf,strlen(buf));
     abAppend(&ab, "\x1b[?25h", 6);
 
@@ -315,13 +324,24 @@ void editorMoveCursor(int key){
     switch(key){
         case ARROW_LEFT:
             if(E.cx!=0){
-                 E.cx--;
+                E.cx--;
+            }else{
+                if(E.cy!=0){
+                    E.cy--;
+                    E.cx=E.row[E.cy].size-1;
+                }
             }
             break;
         case ARROW_RIGHT :
-            if(E.cx!=E.screencols-1){
+            if(E.cx<E.row[E.cy].size){
                 E.cx++;
+            }else if(E.cx>=E.row[E.cy].size){
+                if(E.cy<E.numrows){
+                    E.cy++;
+                    E.cx=0;
+                }
             }
+                
             break;
         case ARROW_UP:
             if(E.cy!=0){
@@ -375,7 +395,7 @@ void editorProcessKeypress() {
 
 // Initializes the editor by retrieving the window size
 void initEditor() {
-
+    E.coloff=0;
     E.rowoff=0;
     E.cy = 0 ;
     E.cx = 0;

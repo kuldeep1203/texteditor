@@ -1,0 +1,101 @@
+ROW 0: Start of file - use arrow keys to move
+ROW 1: Second line
+ROW 2: This is a longer line that will help test horizontal scrolling when you move right with arrow keys or end key
+ROW 3: Short
+ROW 4: Medium length line for testing vertical scroll behavior with cursor movement
+ROW 5: Another line
+ROW 6: Test scrolling with these numbered rows so you can see exactly where you are in the file at all times
+ROW 7: One two three
+ROW 8: Vertical scroll test - press down arrow multiple times to see E.rowoff change and screen scroll
+ROW 9: Horizontal scroll test - press end key or right arrow many times on longer lines
+ROW 10: Row ten
+ROW 11: Test cursor wrapping - what happens at line edges?
+ROW 12: Line 12 here
+ROW 13: A very very very very very very very very very very very very very very very very very very very very very very long line for testing horizontal scrolling
+ROW 14: Short
+ROW 15: Test scrolling
+ROW 16: Keep track of E.rowoff and E.coloff as you scroll
+ROW 17: Navigate to different rows
+ROW 18: Check if vertical scroll works properly
+ROW 19: Row nineteen
+ROW 20: Another row for testing
+ROW 21: Scroll down to see more
+ROW 22: Keep scrolling
+ROW 23: More content here
+ROW 24: Row 24 testing
+ROW 25: Halfway through the file
+ROW 26: Continue scrolling down
+ROW 27: Test page up and page down keys
+ROW 28: Row 28
+ROW 29: Row 29
+ROW 30: Row 30 - a good place to test the middle of screen
+ROW 31: Continue testing
+ROW 32: Row 32 here
+ROW 33: Row 33 with some extra text to make sure scrolling works well across different content lengths and scenarios
+ROW 34: Short
+ROW 35: Row 35
+ROW 36: Row 36
+ROW 37: Row 37
+ROW 38: Row 38
+ROW 39: Row 39
+ROW 40: Row 40 - now at 40 rows total for testing
+ROW 41: Row 41
+ROW 42: Row 42 here with a very very very very very very very very very very very very very very very long line again
+ROW 43: Row 43 short
+ROW 44: Row 44
+ROW 45: Row 45
+ROW 46: Row 46
+ROW 47: Row 47
+ROW 48: Row 48
+ROW 49: Row 49
+ROW 50: Half century of rows!
+ROW 51: Row 51
+ROW 52: Row 52 - testing continues
+ROW 53: Row 53
+ROW 54: Row 54 - yet another very very very very very very very very very very very very very very very long line to test horizontal scrolling
+ROW 55: Row 55
+ROW 56: Row 56
+ROW 57: Row 57
+ROW 58: Row 58
+ROW 59: Row 59
+ROW 60: Row 60
+ROW 61: Row 61
+ROW 62: Row 62 with a super super super super super super super super super super super super super super super super super super long line
+ROW 63: Row 63
+ROW 64: Row 64
+ROW 65: Row 65
+ROW 66: Row 66
+ROW 67: Row 67
+ROW 68: Row 68
+ROW 69: Row 69
+ROW 70: Row 70 - getting near the end
+ROW 71: Row 71
+ROW 72: Row 72 testing
+ROW 73: Row 73
+ROW 74: Row 74 - another very very very very very very very very very very very very very very very very very very very long line goes here
+ROW 75: Row 75
+ROW 76: Row 76
+ROW 77: Row 77
+ROW 78: Row 78
+ROW 79: Row 79
+ROW 80: Row 80
+ROW 81: Row 81
+ROW 82: Row 82 with yet another long long long long long long long long long long long long long long long long line for testing
+ROW 83: Row 83
+ROW 84: Row 84
+ROW 85: Row 85
+ROW 86: Row 86
+ROW 87: Row 87
+ROW 88: Row 88
+ROW 89: Row 89
+ROW 90: Row 90
+ROW 91: Row 91
+ROW 92: Row 92 - more testing of the scrolling mechanism
+ROW 93: Row 93
+ROW 94: Row 94 with a long line here again to test horizontal scrolling to the right when you press end or arrow
+ROW 95: Row 95
+ROW 96: Row 96
+ROW 97: Row 97
+ROW 98: Row 98
+ROW 99: Row 99 - near the end now
+ROW 100: END OF FILE - The last row
