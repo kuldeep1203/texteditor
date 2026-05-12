@@ -1,5 +1,11 @@
 # Kilo Editor - Features to Implement
 
+## ⭐ CRITICAL - Text Insertion
+- [ ] Insert characters at cursor position
+- [ ] Handle character input (editorInsertChar function)
+- [ ] Update cursor position after insertion
+- [ ] Expand rows as needed
+
 ## Scrolling & Navigation
 - [x] Vertical scrolling (arrow up/down, page up/down)
 - [x] Horizontal scrolling (needs implementation)
