@@ -37,7 +37,8 @@ enum editorKey{
     PAGE_DOWN,
     HOME_KEY,
     END_KEY,
-    DEL_KEY
+    DEL_KEY,
+    SPACE_KEY
 
 };
 
@@ -85,7 +86,7 @@ struct editorConfig E; // Global editor configuration
 
 void editorAppendRow(char *s,size_t len){
 
-    E.row  =realloc(E.row,sizeof(erow)*(E.numrows+1));
+    E.row  =realloc(E.row,sizeof(erow)*(E.numrows+1));//increases the array of row by 1 
     int at = E.numrows;
     E.row[at].size = len;
     E.row[at].chars = malloc(len+1);
@@ -94,6 +95,27 @@ void editorAppendRow(char *s,size_t len){
     E.numrows++ ;
 }
 
+void editorInsertChar(int c){
+    //need to insert character 
+    //input would be the ascii value of the incoming character right so int basciakky suppose
+    //insert it at the cursor but then also have to move characters to the right bu  +1 so the len with increase by 1 
+    //so buffer size +1 
+    //so the specific row i need to increase the character  holding capacity by +1 and +1 for the character and the end of line
+    //E.row is array of rows to get the specific row basically E.row[E.cy] 
+
+    E.row[E.cy].chars = realloc(E.row[E.cy].chars,E.row[E.cy].size+2);
+
+    //need to move the characters by 1 to right 
+    //u could just loop from end to current and shift em by one to right 
+    //.. use memmove  does same 
+    memmove(&E.row[E.cy].chars[E.cx+1], &E.row[E.cy].chars[E.cx], E.row[E.cy].size - E.cx);
+
+
+    E.row[E.cy].chars[E.cx]  = c;
+    E.row[E.cy].size++;
+    E.row[E.cy].chars[ E.row[E.cy].size] = '\0';
+    E.cx++;
+}
 
 
 
@@ -388,6 +410,10 @@ void editorProcessKeypress() {
         case ARROW_RIGHT:
             editorMoveCursor(c);
             break;
+        default:
+            editorInsertChar(c);//pass the pressed key including space
+            break;
+            
     }
 }
 
